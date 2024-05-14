@@ -2,7 +2,7 @@
 #include <string>
 #include <fstream>
 #include <sstream>
-
+#include <windows.h>
 using namespace std;
 
 
@@ -273,7 +273,7 @@ public:
 class Repository {
 private:
 	RepoNode* root;
-	HashTable& hashTable;
+	HashTable &hashTable;
 
 	void destroyTree(RepoNode* node) {
 		if (node != nullptr) {
@@ -284,11 +284,8 @@ private:
 	}
 
 public:
-	Repository()
-	{
-		root = nullptr;
-		loadRepositoriesForAllUsers(hashTable);
-	}
+	Repository(HashTable& hashTableRef) : root(nullptr), hashTable(hashTableRef) {}
+
 
 	~Repository() {
 		destroyTree(root);
@@ -331,6 +328,16 @@ public:
 		else {
 			addRepositoryRecurr(root, repoName, username);
 		}
+		saveRepositoryToCSV(repoName, username);
+		ofstream userFile(username + ".csv", ios::app);
+		if (userFile.is_open()) {
+			// Write the repository information to the file
+			userFile << repoName << "," << getCommitListAsString(root) << "," << getFileListAsString(root) << endl;
+			userFile.close(); // Close the file
+		}
+		else {
+			cout << "Error: Unable to open file for writing." << endl;
+		}
 	}
 
 	//Recuurrsive function
@@ -350,17 +357,8 @@ public:
 			else {
 				addRepositoryRecurr(node->right, repoName, username);
 			}
-			saveRepositoryToCSV(repoName, username);
 		}
-		ofstream userFile(username + ".csv", ios::app);
-		if (userFile.is_open()) {
-			// Write the repository information to the file
-			userFile << repoName << "," << getCommitListAsString(root) << "," << getFileListAsString(root) << endl;
-			userFile.close(); // Close the file
-		}
-		else {
-			cout << "Error: Unable to open file for writing." << endl;
-		}
+		
 	}
 	void saveRepositoryToCSV(string repoName, string username) {
 		ofstream outFile("repositories.csv", ios::app);
@@ -407,18 +405,21 @@ public:
 	}
 
 	// Function to display repositories for a specific user
-	void displayRepositories(string username) {
-		displayRepositoriesRecurr(root, username);
-	}
-
-	// Recursive function to display repositories for a specific user
-	void displayRepositoriesRecurr(RepoNode* node, string username) {
-		if (node != nullptr) {
-			displayRepositoriesRecurr(node->left, username);
-			if (node->username == username) {
-				cout << node->repoName << endl;
+	void displayRepositories(string username ) {
+		ifstream repoFile(username + ".csv");
+		if (repoFile.is_open()) {
+			string line;
+			while (getline(repoFile, line)) {
+				stringstream ss(line);
+				string repoName;
+				getline(ss, repoName, ',');
+				
+					cout << repoName  << endl;
 			}
-			displayRepositoriesRecurr(node->right, username);
+			repoFile.close();
+		}
+		else {
+			cout << "Error: Unable to open repositories file." << endl;
 		}
 	}
 
@@ -461,9 +462,8 @@ public:
 			while (getline(repoFile, line)) {
 				stringstream ss(line);
 				string repoName, username;
-				getline(ss, repoName, ',');
 				getline(ss, username, ',');
-
+				getline(ss, repoName, ',');
 				// Check if the repository name matches the search query
 				if (repoName.find(searchQuery) != string::npos) {
 					cout << "Repository: " << repoName << ", Username: " << username << endl;
@@ -478,7 +478,92 @@ public:
 
 };
 int main() {
-	
+		HashTable hashTable;
+		Repository repository(hashTable);
+		string username, password, email, repoName, searchQuery;
+		string id, content, time, msg;
+		char choice;
+		char choose;
+		cout << "Welcome to Github!" << endl;
+
+		do {
+			cout << "\nSelect an option:" << endl;
+			cout << "1. Register" << endl;
+			cout << "2. Login" << endl;
+			cout << "3. Add Repository" << endl;
+			cout << "4. Display Repositories" << endl;
+			cout << "5. Search Repositories" << endl;
+			cout << "6. Logout" << endl;
+			cout << "7. View Profile" << endl;
+			cout << "8. Exit" << endl;
+			cout << "Enter your choice: ";
+			cin >> choice;
+
+			switch (choice) {
+			case '1': // Register
+				cout << "Enter username: ";
+				cin >> username;
+				cout << "Enter password: ";
+				cin >> password;
+				cout << "Enter email: ";
+				cin >> email;
+				User::registerUser(hashTable, username, password, email);
+				break;
+			case '2': // Login
+				cout << "Enter username: ";
+				cin >> username;
+				cout << "Enter password: ";
+				cin >> password;
+				User::loginUser(hashTable, username, password);
+				break;
+			case '3': // Add Repository
+				cout << "Enter username: ";
+				cin >> username;
+				cout << "Enter repository name: ";
+				cin >> repoName;
+				repository.addRepository(repoName, username);
+				Sleep(1000);
+				system("cls");
+				cout << "a) Add Commit" << endl << " b) Add File " << endl << "c) Exit" << endl;
+				cin >> choose;
+			case 'a': // Add commit                                                                                                                                
+				
+				cout << "Enter id: " << endl;
+				cin >> id;
+				cout << "Enter content: " << endl;
+				cin >> content;
+				cout << "Enter timeStamp: " << endl;
+				cin >> time;
+				cout << "Enter message: " << endl;
+				cin >> msg;
+				repository.addCommit(id, msg, time, content);
+				break;
+			case '4': // Display Repositories
+				cout << "Enter username: ";
+				cin >> username;
+				cout << "Repositories:" << endl;
+				repository.displayRepositories(username);
+				break;
+			case '5': // Search Repositories
+				cout << "Enter search query: ";
+				cin >> searchQuery;
+				cout << "Search results:" << endl;
+				repository.searchRepositories(searchQuery);
+				break;
+			case '6': // Logout
+				User::logoutUser(hashTable, username);
+				break;
+			case '7': // View Profile
+				cout << "Profile:" << endl;
+				User::viewProfile(hashTable, username);
+				break;
+			case '8': // Exit
+				cout << "Exiting the program. Goodbye!" << endl;
+				return 0;
+			default:
+				cout << "Invalid choice. Please try again." << endl;
+			}
+		} while (choice != '8');
 
 	system("pause");
 	return 0;
